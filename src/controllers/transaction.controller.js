@@ -22,7 +22,7 @@ const mongoose = require("mongoose");
  * - POST /api/transactions
  * - Protected route, requires authentication
  */
-async function createTransactionController(req, res) {
+async function createTransaction(req, res) {
     const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
 
     // 1. Validate required fields
@@ -97,29 +97,29 @@ async function createTransactionController(req, res) {
     session.startTransaction();
 
     // 5. Create transaction with PENDING status
-    const transaction = await transactionModel.create({
+    const transaction = new transactionModel({
         fromAccount,
         toAccount,
         amount,
         idempotencyKey,
         status: "PENDING"
-    }, { session })
+    })
 
     // 6. Create DEBIT ledger entry for fromAccount
-    const debitEntry = await ledgerModel.create({
+    const debitEntry = await ledgerModel.create([{
         account: fromAccount,
         type: "DEBIT",
         amount,
         transaction: transaction._id
-    }, { session })
+    }], { session })
 
     // 7. Create CREDIT ledger entry for toAccount
-    const creditEntry = await ledgerModel.create({
+    const creditEntry = await ledgerModel.create([{
         account: toAccount,
         type: "CREDIT",
         amount,
         transaction: transaction._id
-    }, { session })
+    }], { session })
 
     // 8. Update transaction status to COMPLETED
     transaction.status = "COMPLETED";
@@ -139,7 +139,77 @@ async function createTransactionController(req, res) {
     })
 }
 
+async function createInitialFundsTransaction(req, res) {
+    const { toAccount, amount, idempotencyKey } = req.body;
+
+    // 1. Validate required fields
+    if(!toAccount || !amount || !idempotencyKey) {
+        return res.status(400).json({
+            message: "Missing required fields: toAccount, amount, idempotencyKey",
+            status: "fail"
+        })
+    }
+
+    const toAccountUser = await accountModel.findOne({
+        _id: toAccount,
+    });
+    if(!toAccountUser) {
+        return res.status(404).json({
+            message: "Invalid toAccount, account not found",
+            status: "fail"
+        })
+    }
+
+    const fromAccount = await accountModel.findOne({
+        //systemUser: true,
+        user: req.user._id
+    })
+    if(!fromAccount) {
+        return res.status(404).json({
+            message: "System account not found for the user",
+            status: "fail"
+        })
+    }
+    
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const transaction = new transactionModel({
+        fromAccount: fromAccount._id,
+        toAccount,
+        amount,
+        idempotencyKey,
+        status: "PENDING"
+    })
+
+    const debitEntry = await ledgerModel.create([{
+        account: fromAccount._id,
+        type: "DEBIT",
+        amount,
+        transaction: transaction._id
+    }], { session })
+
+    const creditEntry = await ledgerModel.create([{
+        account: toAccount,
+        type: "CREDIT",
+        amount,
+        transaction: transaction._id
+    }], { session })
+
+    transaction.status = "COMPLETED";
+    await transaction.save({ session })
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(201).json({
+        message: "Initial funds transaction completed successfully",
+        status: "success",
+        transaction
+    })
+}
 
 module.exports = {
-    createTransactionController
+    createTransaction,
+    createInitialFundsTransaction
 }
