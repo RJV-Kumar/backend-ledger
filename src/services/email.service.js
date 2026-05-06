@@ -41,12 +41,30 @@ const sendEmail = async (to, subject, text, html) => {
 
 async function sendRegistrationEmail(userEmail, name) {
     const subject = "Welcome to RK Test Project - Backend_Ledger";
-    const text = `Hi ${name},\n\nThank you for registering at RK Test Project - Backend_Ledger. 
-    We're excited to have you on board!\n\nBest regards,\nRK Test Project Team`;
-    const html = `<p>Hi ${name},</p><p>Thank you for registering at <strong>RK Test Project - Backend_Ledger</strong>. 
-    We're excited to have you on board!</p><p>Best regards,<br/>RK Test Project Team</p>`;
+    const text = `Hi ${name},\n\nThank you for registering at RK Test Project - Backend_Ledger. We're excited to have you on board!\n\nBest regards,\nRK Test Project Team`;
+    const html = `<p>Hi ${name},</p><p>Thank you for registering at <strong>RK Test Project - Backend_Ledger</strong>. We're excited to have you on board!</p><p>Best regards,<br/>RK Test Project Team</p>`;
     
     await sendEmail(userEmail, subject, text, html);
 }
 
-module.exports = { sendRegistrationEmail };
+async function sendTransactionEmail(userEmail, name, amount, toAccount) {
+    const subject = "Transaction Notification from RK Test Project - Backend_Ledger";
+    const text = `Hi ${name},\n\nYou have successfully transferred $${amount} to account ${toAccount}.\n\nBest regards,\nRK Test Project Team`;
+    const html = `<p>Hi ${name},</p><p>You have successfully transferred <strong>$${amount}</strong> to account <strong>${toAccount}</strong>.</p><p>Best regards,<br/>RK Test Project Team</p>`;
+    
+    await sendEmail(userEmail, subject, text, html);
+}
+
+async function sendTransactionFailureEmail(userEmail, name, amount, toAccount) {
+    const subject = "Transaction Failure Notification from RK Test Project - Backend_Ledger";
+    const text = `Hi ${name},\n\nWe regret to inform you that your transaction of $${amount} to account ${toAccount} has failed. Please check your account balance and try again.\n\nBest regards,\nRK Test Project Team`;
+    const html = `<p>Hi ${name},</p><p>We regret to inform you that your transaction of <strong>$${amount}</strong> to account <strong>${toAccount}</strong> has failed. Please check your account balance and try again.</p><p>Best regards,<br/>RK Test Project Team</p>`;
+
+    await sendEmail(userEmail, subject, text, html);
+}
+
+module.exports = { 
+    sendRegistrationEmail, 
+    sendTransactionEmail,
+    sendTransactionFailureEmail
+};
