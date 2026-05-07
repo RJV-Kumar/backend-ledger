@@ -15,5 +15,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/accounts", accountRouter);
 app.use("/api/transactions", transactionRouter);
 
+app.get("/", (req, res) => {
+    res.status(200).json({
+        message: "Ledger Server is up and running"
+    })
+})
 
 module.exports = app;
