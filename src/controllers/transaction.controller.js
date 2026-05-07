@@ -90,45 +90,61 @@ async function createTransaction(req, res) {
                     Requested amount is ${amount}`,
         })
     }
-
     
-    // starting a session for transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
-    // 5. Create transaction with PENDING status
-    const transaction = new transactionModel({
-        fromAccount,
-        toAccount,
-        amount,
-        idempotencyKey,
-        status: "PENDING"
-    })
+    let transaction; // declaring transaction variable to be used later for response after successful transaction completion
+    try {
 
-    // 6. Create DEBIT ledger entry for fromAccount
-    const debitEntry = await ledgerModel.create([{
-        account: fromAccount,
-        type: "DEBIT",
-        amount,
-        transaction: transaction._id
-    }], { session })
+        // starting a session for transaction
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-    // 7. Create CREDIT ledger entry for toAccount
-    const creditEntry = await ledgerModel.create([{
-        account: toAccount,
-        type: "CREDIT",
-        amount,
-        transaction: transaction._id
-    }], { session })
+        // 5. Create transaction with PENDING status
+        transaction = (await transactionModel.create([{
+            fromAccount,
+            toAccount,
+            amount,
+            idempotencyKey,
+            status: "PENDING"
+        }], { session }))[0] // getting the created transaction from the array
 
-    // 8. Update transaction status to COMPLETED
-    transaction.status = "COMPLETED";
-    await transaction.save({ session })
+        // 6. Create DEBIT ledger entry for fromAccount
+        const debitEntry = await ledgerModel.create([{
+            account: fromAccount,
+            type: "DEBIT",
+            amount,
+            transaction: transaction._id
+        }], { session })
 
-    // 9. Commit transaction to database
-    await session.commitTransaction();
-    session.endSession(); // ending the session
-    
+        // await (() => {
+        //     return new Promise((resolve) => setTimeout(resolve, 100*1000))
+        // })()
+
+        // 7. Create CREDIT ledger entry for toAccount
+        const creditEntry = await ledgerModel.create([{
+            account: toAccount,
+            type: "CREDIT",
+            amount,
+            transaction: transaction._id
+        }], { session })
+
+        // 8. Update transaction status to COMPLETED
+        await transactionModel.findOneAndUpdate(
+            { _id: transaction._id}, 
+            { status: "COMPLETED"}, 
+            { session }
+        )
+
+        // 9. Commit transaction to database
+        await session.commitTransaction();
+        session.endSession(); // ending the session
+    } catch (error) {
+        return res.status(400).json({
+            message: "Transaction is in PENDING state due to an error during processing. Please try again later.",
+            error: error.message,
+        })
+    }
+
     // 10. Send Email notification to both account holders about the transaction
     await emailService.sendTransactionEmail(req.user.email, req.user.name, amount, toAccount);
     
@@ -170,37 +186,48 @@ async function createInitialFundsTransaction(req, res) {
             status: "fail"
         })
     }
-    
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
-    const transaction = new transactionModel({
-        fromAccount: fromAccount._id,
-        toAccount,
-        amount,
-        idempotencyKey,
-        status: "PENDING"
-    })
+    let transaction;
+    try{
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-    const debitEntry = await ledgerModel.create([{
-        account: fromAccount._id,
-        type: "DEBIT",
-        amount,
-        transaction: transaction._id
-    }], { session })
+        transaction = (await transactionModel.create([{
+            fromAccount: fromAccount._id,
+            toAccount,
+            amount,
+            idempotencyKey,
+            status: "PENDING"
+        }], { session }))[0]
 
-    const creditEntry = await ledgerModel.create([{
-        account: toAccount,
-        type: "CREDIT",
-        amount,
-        transaction: transaction._id
-    }], { session })
+        const debitEntry = await ledgerModel.create([{
+            account: fromAccount._id,
+            type: "DEBIT",
+            amount,
+            transaction: transaction._id
+        }], { session })
 
-    transaction.status = "COMPLETED";
-    await transaction.save({ session })
+        const creditEntry = await ledgerModel.create([{
+            account: toAccount,
+            type: "CREDIT",
+            amount,
+            transaction: transaction._id
+        }], { session })
 
-    await session.commitTransaction();
-    session.endSession();
+        await transactionModel.findOneAndUpdate(
+            { _id: transaction._id}, 
+            { status: "COMPLETED"}, 
+            { session }
+        )
+
+        await session.commitTransaction();
+        session.endSession();
+    } catch (error) {
+        return res.status(400).json({
+            message: "Initial funds transaction is in PENDING state due to an error during processing. Please try again later.",
+            error: error.message,
+        })
+    }
 
     return res.status(201).json({
         message: "Initial funds transaction completed successfully",
