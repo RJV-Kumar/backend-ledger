@@ -301,8 +301,8 @@ GMAIL_REFRESH_TOKEN=your-google-refresh-token
 
 ## API Documentation
 
-- Postman Collection: https://example.com/postman-docs
-- Swagger Docs: https://example.com/swagger-docs
+- Postman Collection: 
+- Swagger Docs: 
 
 ---
 
